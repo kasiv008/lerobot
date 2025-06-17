@@ -27,12 +27,12 @@ class U850Leader(Teleoperator):
         self.bus = XarmMotorBus(
             port=self.config.port,
             motors={
-                "joint1": Motor(1, "ufactory-850", MotorNormMode.RANGE_M100_100),
-                "joint2": Motor(2, "ufactory-850", MotorNormMode.RANGE_M100_100),
-                "joint3": Motor(3, "ufactory-850", MotorNormMode.RANGE_M100_100),
-                "joint4": Motor(4, "ufactory-850", MotorNormMode.RANGE_M100_100),
-                "joint5": Motor(5, "ufactory-850", MotorNormMode.RANGE_0_100),
-                "joint6": Motor(6, "ufactory-850", MotorNormMode.RANGE_0_100),
+                "joint1": Motor(1, "ufactory-850-1", MotorNormMode.RANGE_M100_100),
+                "joint2": Motor(2, "ufactory-850-2", MotorNormMode.RANGE_M100_100),
+                "joint3": Motor(3, "ufactory-850-3", MotorNormMode.RANGE_M100_100),
+                "joint4": Motor(4, "ufactory-850-4", MotorNormMode.RANGE_M100_100),
+                "joint5": Motor(5, "ufactory-850-5", MotorNormMode.RANGE_0_100),
+                "joint6": Motor(6, "ufactory-850-6", MotorNormMode.RANGE_0_100),
                 "gripper": Motor(7, "robotiq", MotorNormMode.RANGE_0_100),
             },
         )

@@ -189,10 +189,11 @@ class XarmMotorBus(MotorsBus):
             code_gripper, pos_gripper = self.api.robotiq_status['gFLT'], self.api.robotiq_status['gPO']
             pos = angles[:-1] + [pos_gripper]
             #pos = angles + [pos_gripper]
-            return pos
+            return {motor: pos for motor, pos in zip(self.motor_models, pos)}
 
     def set_position_replay(self, position: np.ndarray):
-        angles = position[:-1].tolist()
+        position = [i for _, i in list(position.items())]
+        angles = position[:-1]
         gripper_pos = int(position[-1])
 
         if not self.replay_mode:
@@ -214,7 +215,8 @@ class XarmMotorBus(MotorsBus):
             raise ValueError(f"Unsupported gripper model: {self.motor_models[-1]}")
 
     def set_position(self,position: np.ndarray):
-        angles = position[:-1].tolist()
+        position = [i for _, i in list(position.items())]
+        angles = position[:-1]
         gripper_pos = int(position[-1])
         
         # joints        
