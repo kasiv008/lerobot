@@ -29,6 +29,7 @@ class u850RobotConfig(RobotConfig):
     # the number of motors in your follower arms.
     max_relative_target: int | None = None
 
+    port: str = "172.16.0.11"
     # cameras
     cameras: dict[str, CameraConfig] = field(
         default_factory=lambda: {

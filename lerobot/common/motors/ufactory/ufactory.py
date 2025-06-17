@@ -1,17 +1,24 @@
 from copy import deepcopy
-import enum
+from enum import Enum
 from xarm.wrapper import XArmAPI
 import numpy as np
 import threading
 import time
 import logging
 
+from lerobot.common.utils.encoding_utils import decode_sign_magnitude, encode_sign_magnitude
 
-class TorqueMode(enum.Enum):
+from ..motors_bus import Motor, MotorCalibration, MotorsBus, NameOrID, Value, get_address
+
+class TorqueMode(Enum):
     ENABLED = 1
     DISABLED = 0
 
-class xArmWrapper:
+class DriveMode(Enum):
+    NON_INVERTED = 0
+    INVERTED = 1
+
+class XarmMotorBus(MotorsBus):
     """Wrapper for the xArm Python SDK"""
 
     def __init__(
