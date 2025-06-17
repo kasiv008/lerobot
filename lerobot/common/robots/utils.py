@@ -53,7 +53,7 @@ def make_robot_from_config(config: RobotConfig) -> Robot:
         from tests.mocks.mock_robot import MockRobot
 
         return MockRobot(config)
-    elif config.type == "u850":
+    elif config.type == "u850_follower":
         from .u850 import U850Robot
 
         return U850Robot(config)

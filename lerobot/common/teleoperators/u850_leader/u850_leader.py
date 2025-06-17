@@ -3,7 +3,7 @@ import time
 
 from lerobot.common.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
 from lerobot.common.motors import Motor, MotorCalibration, MotorNormMode
-from lerobot.common.motors.ufactory import XarmMotorsBus
+from lerobot.common.motors.ufactory import XarmMotorBus
 
 
 from ..teleoperator import Teleoperator
@@ -24,7 +24,7 @@ class U850Leader(Teleoperator):
         super().__init__(config)
         self.config = config
         norm_mode_body = MotorNormMode.DEGREES if config.use_degrees else MotorNormMode.RANGE_M100_100
-        self.bus = XarmMotorsBus(
+        self.bus = XarmMotorBus(
             port=self.config.port,
             motors={
                 "joint1": Motor(1, "ufactory-850", MotorNormMode.RANGE_M100_100),
@@ -49,7 +49,7 @@ class U850Leader(Teleoperator):
     def is_connected(self) -> bool:
         return self.bus.is_connected
 
-    def connect(self, calibrate: bool = True) -> None:
+    def connect(self) -> None:
         if self.is_connected:
             raise DeviceAlreadyConnectedError(f"{self} already connected")
 
@@ -60,9 +60,12 @@ class U850Leader(Teleoperator):
         self.configure()
         logger.info(f"{self} connected.")
 
-    # @property
-    # def is_calibrated(self) -> bool:
-    #     return self.bus.is_calibrated
+    @property
+    def is_calibrated(self) -> bool:
+        return self.bus.is_calibrated
+    
+    def calibrate(self) -> None:
+        return NotImplementedError
 
     # def calibrate(self) -> None:
     #     logger.info(f"\nRunning calibration of {self}")

@@ -33,7 +33,7 @@ class XarmMotorBus(MotorsBus):
         self.mock = mock
 
         self.calibration = None
-        self.is_connected = False
+        self._connected = False
         self.logs = {}
 
         self.api = None
@@ -56,16 +56,20 @@ class XarmMotorBus(MotorsBus):
 
     @property
     def motor_models(self) -> list[str]:
-        return [model for _, model in self.motors.values()]
+        return [motors.model for motors in self.motors.values()]
 
     @property
     def motor_indices(self) -> list[int]:
-        return [idx for idx, _ in self.motors.values()]
+        return [motors.id for motors in self.motors.values()]
+
+    @property
+    def is_connected(self):
+        return self._connected
 
     def connect(self):
         print("Connecting to xArm")  # Debug print
         print(self.port)
-        if self.is_connected:
+        if self._connected:
             print(f"DynamixelMotorsBus({self.port}) is already connected. Do not call `motors_bus.connect()` twice.")
             #raise RobotDeviceAlreadyConnectedError(
                 #f"DynamixelMotorsBus({self.port}) is already connected. Do not call `motors_bus.connect()` twice."
@@ -86,7 +90,7 @@ class XarmMotorBus(MotorsBus):
             raise
 
         # Allow to read and write
-        self.is_connected = True
+        self._connected = True
 
         # Start the monitoring thread after successful connection
         self.monitor_input_thread.start()
@@ -112,8 +116,8 @@ class XarmMotorBus(MotorsBus):
         else:
             self.api.set_mode(0)
         self.api.set_state(state=0)
-        #get the indixof the gripper
-        if self.motor_models[-1] == "gipper":
+        #get the index of the gripper
+        if self.motor_models[-1] == "gripper":
             self.api.set_gripper_mode(0)
             self.api.set_gripper_enable(True)
             self.api.set_gripper_speed(5000)  # default speed, as there's no way to fetch gripper speed from API
@@ -140,7 +144,7 @@ class XarmMotorBus(MotorsBus):
 
     def disconnect(self):
         print("Disconnecting from xArm")  # Debug print
-        if not self.is_connected:
+        if not self._connected:
             print(f"FeetechMotorsBus({self.port}) is not connected. Try running `motors_bus.connect()` first.")
             #raise RobotDeviceNotConnectedError(
             #    f"FeetechMotorsBus({self.port}) is not connected. Try running `motors_bus.connect()` first."
@@ -161,7 +165,7 @@ class XarmMotorBus(MotorsBus):
         print("Monitor thread joined")  # Debug print
 
         # Signal as disconnected
-        self.is_connected = False
+        self._connected = False
 
     def __del__(self):
         if getattr(self, "is_connected", False):
@@ -238,7 +242,7 @@ class XarmMotorBus(MotorsBus):
 
         while not stop_event.is_set():
             try:
-                if self.api is not None and self.is_connected:
+                if self.api is not None and self._connected:
                     code, value = self.api.get_tgpio_digital(ionum=2)
                     # print(f"Digital input read: code={code}, value={value}")  # Debug print
                     if code == 0:
@@ -331,3 +335,70 @@ class XarmMotorBus(MotorsBus):
             raise ValueError(f"Unsupported gripper model: {self.motor_models[-1]}")
         elif self.motor_models[-1] == "gipper":
             self.api.set_gripper_position(pos=600, wait=True)
+    
+    def _assert_protocol_is_compatible(self, instruction_name):
+        pass
+
+    def _decode_sign(self, data_name, ids_values):
+        pass
+
+    def _disable_torque(self, motor, model, num_retry = 0):
+        pass
+
+    def _encode_sign(self, data_name, ids_values):
+        pass
+
+    def _find_single_motor(self, motor, initial_baudrate):
+        pass
+
+    def _get_half_turn_homings(self, positions):
+        pass
+
+    def _handshake(self):
+        pass
+
+    def _split_into_byte_chunks(self, value, length):
+        pass
+
+    def broadcast_ping(self, num_retry = 0, raise_on_error = False):
+        pass
+
+    def configure_motors(self):
+        pass
+
+    def disable_torque(self, motors = None, num_retry = 0):
+        pass
+
+    def enable_torque(self, motors = None, num_retry = 0):
+        pass
+    
+    @property
+    def is_calibrated(self) -> bool:
+        return self.calibration == self.read_calibration()
+    
+    def read_calibration(self) -> dict[str, MotorCalibration]:
+        offsets = self.sync_read("Homing_Offset", normalize=False)
+        mins = self.sync_read("Min_Position_Limit", normalize=False)
+        maxes = self.sync_read("Max_Position_Limit", normalize=False)
+        drive_modes = self.sync_read("Drive_Mode", normalize=False)
+
+        calibration = {}
+        for motor, m in self.motors.items():
+            calibration[motor] = MotorCalibration(
+                id=m.id,
+                drive_mode=drive_modes[motor],
+                homing_offset=offsets[motor],
+                range_min=mins[motor],
+                range_max=maxes[motor],
+            )
+
+        return calibration
+    
+    def write_calibration(self, calibration_dict: dict[str, MotorCalibration]) -> None:
+        for motor, calibration in calibration_dict.items():
+            self.write("Homing_Offset", motor, calibration.homing_offset)
+            self.write("Min_Position_Limit", motor, calibration.range_min)
+            self.write("Max_Position_Limit", motor, calibration.range_max)
+
+        self.calibration = calibration_dict
+    

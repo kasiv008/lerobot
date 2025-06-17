@@ -7,7 +7,7 @@ from lerobot.common.cameras.utils import make_cameras_from_configs
 from lerobot.common.constants import OBS_STATE
 from lerobot.common.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
 from lerobot.common.motors import Motor, MotorCalibration, MotorNormMode
-from lerobot.common.motors.ufactory import XarmMotorsBus
+from lerobot.common.motors.ufactory import XarmMotorBus
 from ..robot import Robot
 from ..utils import ensure_safe_goal_position
 from .config_u850 import u850RobotConfig
@@ -25,7 +25,7 @@ class U850Robot(Robot):
     def __init__(self, config: u850RobotConfig):
         super().__init__(config)
         self.config = config
-        self.bus = XarmMotorsBus(
+        self.bus = XarmMotorBus(
             port=self.config.port,
             motors={
                 "joint1": Motor(1, "ufactory-850", MotorNormMode.RANGE_M100_100),
@@ -79,9 +79,13 @@ class U850Robot(Robot):
         self.configure()
         logger.info(f"{self} connected.")
     
-    def calibrate(self) -> None:
-        raise NotImplementedError 
+    @property
+    def is_calibrated(self) -> bool:
+        return self.bus.is_calibrated
     
+    def calibrate(self) -> None:
+        return NotImplementedError
+
     def configure(self):
         """Configure the robot after connection."""
         if not self.is_connected:

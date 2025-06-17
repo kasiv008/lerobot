@@ -21,7 +21,7 @@ from lerobot.common.cameras.realsense import RealSenseCameraConfig
 from ..config import RobotConfig
 
 
-@RobotConfig.register_subclass("u850")
+@RobotConfig.register_subclass("u850_follower")
 @dataclass
 class u850RobotConfig(RobotConfig):
     # `max_relative_target` limits the magnitude of the relative positional target vector for safety purposes.
@@ -40,7 +40,7 @@ class u850RobotConfig(RobotConfig):
                 height=480,
             ),
             "wrist": RealSenseCameraConfig(
-                name="Intel RealSense D405",
+                serial_number_or_name="218622273032",
                 fps=30,
                 width=640,
                 height=480,

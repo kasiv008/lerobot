@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass, field
-from ..config import RobotConfig
+from dataclasses import dataclass
+from ..config import TeleoperatorConfig
 
 
-@RobotConfig.register_subclass("u850_leader")
+@TeleoperatorConfig.register_subclass("u850_leader")
 @dataclass
-class U850LeaderConfig(RobotConfig):
+class U850LeaderConfig(TeleoperatorConfig):
     # `max_relative_target` limits the magnitude of the relative positional target vector for safety purposes.
     # Set this to a positive scalar to have the same value for all motors, or a list that is the same length as
     # the number of motors in your follower arms.
