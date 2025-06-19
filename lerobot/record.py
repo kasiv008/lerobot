@@ -61,6 +61,7 @@ from lerobot.common.robots import (  # noqa: F401
     make_robot_from_config,
     so100_follower,
     so101_follower,
+    u850,
 )
 from lerobot.common.teleoperators import (  # noqa: F401
     Teleoperator,
@@ -84,7 +85,7 @@ from lerobot.common.utils.visualization_utils import _init_rerun
 from lerobot.configs import parser
 from lerobot.configs.policies import PreTrainedConfig
 
-from .common.teleoperators import koch_leader, so100_leader, so101_leader  # noqa: F401
+from .common.teleoperators import koch_leader, so100_leader, so101_leader, u850_leader  # noqa: F401
 
 
 @dataclass
@@ -187,6 +188,8 @@ def record_loop(
             break
 
         observation = robot.get_observation()
+        #print(observation)
+        #print(dataset.features)
 
         if policy is not None or dataset is not None:
             observation_frame = build_dataset_frame(dataset.features, observation, prefix="observation")
@@ -223,12 +226,12 @@ def record_loop(
         if display_data:
             for obs, val in observation.items():
                 if isinstance(val, float):
-                    rr.log(f"observation.{obs}", rr.Scalar(val))
+                    rr.log(f"observation.{obs}", rr.Scalars(val))
                 elif isinstance(val, np.ndarray):
                     rr.log(f"observation.{obs}", rr.Image(val), static=True)
             for act, val in action.items():
                 if isinstance(val, float):
-                    rr.log(f"action.{act}", rr.Scalar(val))
+                    rr.log(f"action.{act}", rr.Scalars(val))
 
         dt_s = time.perf_counter() - start_loop_t
         busy_wait(1 / fps - dt_s)

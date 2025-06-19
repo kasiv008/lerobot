@@ -40,23 +40,38 @@ class U850Robot(Robot):
         self.cameras = make_cameras_from_configs(config.cameras)
 
     @property
+    def _state_ft(self) -> dict[str, type]:
+        return dict.fromkeys(
+            (
+                "joint1.pos",
+                "joint2.pos",
+                "joint3.pos",
+                "joint4.pos",
+                "joint5.pos",
+                "joint6.pos",
+                "gripper.pos",
+            ),
+            float,
+        )
+    
+    @property
     def _motors_ft(self) -> dict[str, type]:
         return {f"{motor}.pos": float for motor in self.bus.motors}
 
     @property
     def _cameras_ft(self) -> dict[str, tuple]:
         return {
-            camera.name: (camera.width, camera.height)
-            for camera in self.cameras.values()
+            cam: (self.config.cameras[cam].height, self.config.cameras[cam].width, 3) for cam in self.cameras
         }
+
     @cached_property
     def observation_features(self) -> dict[str, type | tuple]:
         return {**self._motors_ft, **self._cameras_ft}
-    
+
     @cached_property
     def action_features(self) -> dict[str, type]:
         return self._motors_ft
-    
+
     @property
     def is_connected(self) -> bool:
         return self.bus.is_connected and all(cam.is_connected for cam in self.cameras.values())
@@ -103,7 +118,7 @@ class U850Robot(Robot):
 
         # Read arm position
         start = time.perf_counter()
-        obs_dict[OBS_STATE] = self.bus.get_position()
+        obs_dict = self.bus.get_position()
         obs_dict = {f"{motor}.pos": val for motor, val in obs_dict.items()}
         dt_ms = (time.perf_counter() - start) * 1e3
         logger.debug(f"{self} read state: {dt_ms:.1f}ms")

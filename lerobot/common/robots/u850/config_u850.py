@@ -31,6 +31,7 @@ class u850RobotConfig(RobotConfig):
 
     port: str = "172.16.0.11"
     # cameras
+    #cameras: dict[str, CameraConfig] = field(default_factory=dict)
     cameras: dict[str, CameraConfig] = field(
         default_factory=lambda: {
             "top": OpenCVCameraConfig(

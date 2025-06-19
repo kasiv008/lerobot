@@ -189,7 +189,7 @@ class XarmMotorBus(MotorsBus):
             code_gripper, pos_gripper = self.api.robotiq_status['gFLT'], self.api.robotiq_status['gPO']
             pos = angles[:-1] + [pos_gripper]
             #pos = angles + [pos_gripper]
-            return {motor: pos for motor, pos in zip(self.motor_models, pos)}
+            return {motor: pos for motor, pos in zip(self.motor_names, pos)}
 
     def set_position_replay(self, position: np.ndarray):
         position = [i for _, i in list(position.items())]
