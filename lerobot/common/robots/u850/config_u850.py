@@ -50,3 +50,28 @@ class u850RobotConfig(RobotConfig):
     )
 
     mock: bool = False
+
+    robot_type: str = "u850"
+
+@RobotConfig.register_subclass("u850_follower_end_effector")
+@dataclass
+class U850FollowerEndEffectorConfig(u850RobotConfig):
+    """Configuration for the U850FollowerEndEffector robot."""
+
+    # Default bounds for the end-effector position (in meters)
+    end_effector_bounds: dict[str, list[float]] = field(
+        default_factory=lambda: {
+            "min": [0.3778, -0.4254, -0.1031],  # min x, y, z
+            "max": [0.8168, 0.3277, 0.7832],  # max x, y, z
+        }
+    )
+
+    max_gripper_pos: float = 255
+
+    end_effector_step_sizes: dict[str, float] = field(
+        default_factory=lambda: {
+            "x": 0.02,
+            "y": 0.02,
+            "z": 0.02,
+        }
+    )

@@ -29,3 +29,4 @@ class U850LeaderConfig(TeleoperatorConfig):
     use_degrees: bool = True
 
     mock: bool = False
+    robot_type: str = "u850"

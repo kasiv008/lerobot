@@ -42,6 +42,7 @@ from lerobot.common.robots import (  # noqa: F401
     koch_follower,
     make_robot_from_config,
     so100_follower,
+    u850,
 )
 from lerobot.common.teleoperators import (  # noqa: F401
     TeleoperatorConfig,
@@ -49,6 +50,7 @@ from lerobot.common.teleoperators import (  # noqa: F401
     koch_leader,
     make_teleoperator_from_config,
     so100_leader,
+    u850_leader,
 )
 
 
@@ -76,12 +78,17 @@ def find_joint_and_ee_bounds(cfg: FindJointLimitsConfig):
         # Note to be compatible with the rest of the codebase,
         # we are using the new calibration method for so101 and so100
         robot_type = "so_new_calibration"
-    kinematics = RobotKinematics(robot_type=robot_type)
+    
+    if robot_type != "u850":
+        kinematics = RobotKinematics(robot_type=robot_type)
 
     # Initialize min/max values
     observation = robot.get_observation()
     joint_positions = np.array([observation[f"{key}.pos"] for key in robot.bus.motors])
-    ee_pos = kinematics.forward_kinematics(joint_positions, frame="gripper_tip")[:3, 3]
+    if robot_type == "u850":
+        ee_pos = robot.bus.get_forward_kinematics()[:3, 3]  # type: ignore
+    else:
+        ee_pos = kinematics.forward_kinematics(joint_positions, frame="gripper_tip")[:3, 3]
 
     max_pos = joint_positions.copy()
     min_pos = joint_positions.copy()
@@ -94,7 +101,10 @@ def find_joint_and_ee_bounds(cfg: FindJointLimitsConfig):
 
         observation = robot.get_observation()
         joint_positions = np.array([observation[f"{key}.pos"] for key in robot.bus.motors])
-        ee_pos = kinematics.forward_kinematics(joint_positions, frame="gripper_tip")[:3, 3]
+        if robot_type == "u850":
+            ee_pos = robot.bus.get_forward_kinematics()[:3, 3]  # type: ignore
+        else:
+            ee_pos = kinematics.forward_kinematics(joint_positions, frame="gripper_tip")[:3, 3]
 
         # Skip initial warmup period
         if (time.perf_counter() - start_episode_t) < 5:

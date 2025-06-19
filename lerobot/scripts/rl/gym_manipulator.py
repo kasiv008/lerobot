@@ -55,12 +55,14 @@ from lerobot.common.robots import (  # noqa: F401
     RobotConfig,
     make_robot_from_config,
     so100_follower,
+    u850
 )
 from lerobot.common.teleoperators import (
     gamepad,  # noqa: F401
     keyboard,  # noqa: F401
     make_teleoperator_from_config,
     so101_leader,  # noqa: F401
+    u850_leader,
 )
 from lerobot.common.teleoperators.gamepad.teleop_gamepad import GamepadTeleop
 from lerobot.common.teleoperators.keyboard.teleop_keyboard import KeyboardEndEffectorTeleop
@@ -268,6 +270,9 @@ class RobotEnv(gym.Env):
 
         images = {key: obs_dict[key] for key in self._image_keys}
         return {"agent_pos": joint_positions, "pixels": images}
+
+    def _get_forward_kinematics(self) -> np.ndarray:
+        return self.robot.bus.get_forward_kinematics()
 
     def _setup_spaces(self):
         """
@@ -1091,12 +1096,14 @@ class EEObservationWrapper(gym.ObservationWrapper):
         )
 
         # Initialize kinematics instance for the appropriate robot type
-        robot_type = getattr(env.unwrapped.robot.config, "robot_type", "so101")
-        if "so100" in robot_type or "so101" in robot_type:
+        self.robot_type = getattr(env.unwrapped.robot.config, "robot_type", "so101")
+        if "so100" in self.robot_type or "so101" in self.robot_type:
             # Note to be compatible with the rest of the codebase,
             # we are using the new calibration method for so101 and so100
-            robot_type = "so_new_calibration"
-        self.kinematics = RobotKinematics(robot_type)
+            self.robot_type = "so_new_calibration"
+
+        if self.robot_type != "u850":
+            self.kinematics = RobotKinematics(robot_type=self.robot_type)
 
     def observation(self, observation):
         """
@@ -1109,8 +1116,10 @@ class EEObservationWrapper(gym.ObservationWrapper):
             Enhanced observation with end-effector pose information.
         """
         current_joint_pos = self.unwrapped._get_observation()["agent_pos"]
-
-        current_ee_pos = self.kinematics.forward_kinematics(current_joint_pos, frame="gripper_tip")[:3, 3]
+        if self.robot_type == "u850":
+            current_ee_pos = self.unwrapped._get_forward_kinematics()[:3, 3]
+        else: 
+            current_ee_pos = self.kinematics.forward_kinematics(current_joint_pos, frame="gripper_tip")[:3, 3]
         observation["agent_pos"] = np.concatenate([observation["agent_pos"], current_ee_pos], -1)
         return observation
 
@@ -1157,12 +1166,15 @@ class BaseLeaderControlWrapper(gym.Wrapper):
         self.event_lock = Lock()  # Thread-safe access to events
 
         # Initialize robot control
-        robot_type = getattr(env.unwrapped.robot.config, "robot_type", "so101")
-        if "so100" in robot_type or "so101" in robot_type:
+        # Initialize kinematics instance for the appropriate robot type
+        self.robot_type = getattr(env.unwrapped.robot.config, "robot_type", "so101")
+        if "so100" in self.robot_type or "so101" in self.robot_type:
             # Note to be compatible with the rest of the codebase,
             # we are using the new calibration method for so101 and so100
-            robot_type = "so_new_calibration"
-        self.kinematics = RobotKinematics(robot_type)
+            self.robot_type = "so_new_calibration"
+
+        if self.robot_type != "u850":
+            self.kinematics = RobotKinematics(robot_type=self.robot_type)
         self.leader_torque_enabled = True
         self.prev_leader_gripper = None
 
@@ -1266,8 +1278,12 @@ class BaseLeaderControlWrapper(gym.Wrapper):
         self.leader_tracking_error_queue.append(np.linalg.norm(follower_pos[:-1] - leader_pos[:-1]))
 
         # [:3, 3] Last column of the transformation matrix corresponds to the xyz translation
-        leader_ee = self.kinematics.forward_kinematics(leader_pos, frame="gripper_tip")[:3, 3]
-        follower_ee = self.kinematics.forward_kinematics(follower_pos, frame="gripper_tip")[:3, 3]
+        if self.robot_type == "u850":
+            leader_ee = self.unwrapped._get_forward_kinematics(leader_pos)[:3, 3]
+            follower_ee = self.unwrapped._get_forward_kinematics(follower_pos)[:3, 3]
+        else:
+            leader_ee = self.kinematics.forward_kinematics(leader_pos, frame="gripper_tip")[:3, 3]
+            follower_ee = self.kinematics.forward_kinematics(follower_pos, frame="gripper_tip")[:3, 3]
 
         action = np.clip(leader_ee - follower_ee, -self.end_effector_step_sizes, self.end_effector_step_sizes)
         # Normalize the action to the range [-1, 1]

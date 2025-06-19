@@ -57,6 +57,10 @@ def make_robot_from_config(config: RobotConfig) -> Robot:
         from .u850 import U850Robot
 
         return U850Robot(config)
+    elif config.type == "u850_follower_end_effector":
+        from .u850 import U850FollowerEndEffector
+
+        return U850FollowerEndEffector(config)
     else:
         raise ValueError(config.type)
 

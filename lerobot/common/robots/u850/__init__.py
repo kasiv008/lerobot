@@ -1,2 +1,3 @@
-from .config_u850 import u850RobotConfig
+from .config_u850 import u850RobotConfig, U850FollowerEndEffectorConfig
 from .robot_u850 import U850Robot
+from .robot_u850_follower_end_effector import U850FollowerEndEffector

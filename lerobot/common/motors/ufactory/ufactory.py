@@ -213,7 +213,42 @@ class XarmMotorBus(MotorsBus):
             self.api.robotiq_set_position(pos=gripper_pos)
         else:
             raise ValueError(f"Unsupported gripper model: {self.motor_models[-1]}")
+        
+    def get_cartesian_position(self):
+        code, pos = self.api.get_position()
+        if code != 0:
+            raise RuntimeError(f"Failed to get Cartesian position: {code}")
+        pos = np.array(pos)
+        pos[:3] = pos[:3]/1000  # x, y, z in mm
+        return pos
 
+    def get_forward_kinematics(self):
+        ## doesnt compute forward kinematics but gives 4x4 matrix of the end-effector
+        position = self.get_cartesian_position()
+        roll, pitch, yaw = position[3:]  # Extract orientation components
+        # Convert degrees to radians
+        roll, pitch, yaw = np.radians([roll, pitch, yaw])
+    
+        # Compute sines and cosines once
+        cr, sr = np.cos(roll), np.sin(roll)
+        cp, sp = np.cos(pitch), np.sin(pitch)
+        cy, sy = np.cos(yaw), np.sin(yaw)
+        x, y, z = position[:3]  # Extract position components       
+        # Create rotation matrix - RPY (Z-Y-X convention)
+        R = np.array([
+            [cy*cp, cy*sp*sr-sy*cr, cy*sp*cr+sy*sr, x],
+            [sy*cp, sy*sp*sr+cy*cr, sy*sp*cr-cy*sr, y],
+            [-sp, cp*sr, cp*cr, z],
+            [0, 0, 0, 1]
+        ])
+        
+        return R
+
+    def set_cartesian_position(self, position: np.ndarray):
+        x, y, z = position[:3]
+        roll, pitch, yaw = position[3:]
+        self.api.set_position(x=x, y=y, z=z, roll=roll, pitch=pitch, yaw=yaw, wait=False, speed=self.MAX_SPEED_LIMIT, acceleration=self.MAX_ACC_LIMIT)
+    
     def set_position(self,position: np.ndarray):
         position = [i for _, i in list(position.items())]
         angles = position[:-1]
@@ -227,7 +262,16 @@ class XarmMotorBus(MotorsBus):
             self.api.set_gripper_position(pos=gripper_pos, wait=False)
         elif self.motor_models[-1] == "robotiq":
             self.api.robotiq_set_position(pos=gripper_pos)
-
+        else:
+            raise ValueError(f"Unsupported gripper model: {self.motor_models[-1]}")
+        
+    def set_gripper_pos(self, position: int):
+        if self.motor_models[-1] == "gipper":
+            self.api.set_gripper_position(pos=position, wait=False)
+        elif self.motor_models[-1] == "robotiq":
+            self.api.robotiq_set_position(pos=position)
+        else:
+            raise ValueError(f"Unsupported gripper model: {self.motor_models[-1]}")
 
     def monitor_digital_input(self, stop_event):
         print("Starting monitor_digital_input")  # Debug print

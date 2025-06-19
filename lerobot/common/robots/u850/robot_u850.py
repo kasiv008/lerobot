@@ -150,6 +150,17 @@ class U850Robot(Robot):
         self.bus.set_position(goal_pos)
         return {f"{motor}.pos": val for motor, val in goal_pos.items()}
     
+    def get_ee_coordinates(self) -> dict[str, float]:
+        if not self.is_connected:
+            raise DeviceNotConnectedError(f"{self} is not connected.")
+        # Read arm position
+        start = time.perf_counter()
+        ee_pos = self.bus.get_cartesian_position()
+        dt_ms = (time.perf_counter() - start) * 1e3
+        logger.debug(f"{self} read ee coordinates: {dt_ms:.1f}ms")
+        return ee_pos
+
+    
     def disconnect(self):
         if not self.is_connected:
             raise DeviceNotConnectedError(f"{self} is not connected.")
