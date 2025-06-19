@@ -1,0 +1,5 @@
+python lerobot/scripts/train.py     --dataset.repo_id=kasiv008/xarm-robotiq-snack_pick_sideways     --policy.type=smolvla    --output_dir /home/kasi/Desktop/lebot_training/smolvla_snack_60 --batch_size 32 --steps 60000
+
+python -m lerobot.record     --robot.type=u850_follower     --robot.id=black     --dataset.repo_id=kasiv008/xarm-lerob-nl     --dataset.num_episodes=2     --dataset.single_task="Grab the cube" --teleop.type=u850_leader  --teleop.id=blue --display_data=true
+
+ python -m lerobot.scripts.find_joint_limits     --robot.type=u850_follower     --robot.id=black     --teleop.type=u850_leader     --teleop.id=blue

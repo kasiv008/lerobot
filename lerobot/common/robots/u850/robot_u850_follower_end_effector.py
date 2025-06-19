@@ -142,7 +142,7 @@ class U850FollowerEndEffector(U850Robot):
             self.config.max_gripper_pos,
         )
 
-        x, y, z = desired_ee_pos[:3, 3]
+        x, y, z = desired_ee_pos[:3, 3]*1000  # Convert to mm
         pitch = np.arcsin(-desired_ee_pos[2, 0])
         if np.cos(pitch) > 1e-10:
             roll = np.arctan2(desired_ee_pos[2, 1], desired_ee_pos[2, 2])

@@ -1,0 +1,120 @@
+{
+    "type": "gym_manipulator",
+    "robot": {
+        "type": "u850_follower_end_effector",
+        "port": "172.16.0.11",
+        "cameras": {
+            "top": {
+                "type": "opencv",
+                "index_or_path": 6,
+                "height": 480,
+                "width": 640,
+                "fps": 30
+            },
+            "wrist": {
+                "type": "intelrealsense",
+                "serial_number_or_name": "218622273032",
+                "height": 480,
+                "width": 640,
+                "fps": 30
+            }
+        },
+        "end_effector_bounds": {
+            "min": [
+                0.37,
+                -0.42,
+                -0.10
+            ],
+            "max": [
+                0.81,
+                0.32,
+                0.78
+            ]
+        },
+        "end_effector_step_sizes": {
+            "x": 0.025,
+            "y": 0.025,
+            "z": 0.025
+        }
+    },
+    "teleop": {
+        "type": "u850_leader",
+        "port": "172.16.0.13",
+        "use_degrees": true
+    },
+    "wrapper": {
+        "display_cameras": false,
+        "add_joint_velocity_to_observation": true,
+        "add_current_to_observation": true,
+        "add_ee_pose_to_observation": true,
+        "crop_params_dict": null,
+        "resize_size": [
+            256,
+            256
+        ],
+        "control_time_s": 40.0,
+        "use_gripper": true,
+        "gripper_quantization_threshold": null,
+        "gripper_penalty": -0.02,
+        "gripper_penalty_in_reward": false,
+        "fixed_reset_joint_positions": [
+            0.0,
+            38.1,
+            -6.7,
+            2,
+            43.3,
+            -1.3,
+            3
+        ],
+        "reset_time_s": 5,
+        "control_mode": "leader"
+    },
+    "name": "real_robot",
+    "mode": "record",
+    "repo_id": "kasiv008/xarm-rl-grocery-bag",
+    "dataset_root": "/home/kasi/Desktop/xarm_data/hil",
+    "task": "pick bag of chips and put in the grocery bag",
+    "num_episodes": 15,
+    "episode": 0,
+    "pretrained_policy_name_or_path": null,
+    "device": "cuda",
+    "push_to_hub": true,
+    "fps": 30,
+    "features": {
+        "observation.images.top": {
+            "type": "VISUAL",
+            "shape": [
+                3,
+                256,
+                256
+            ]
+        },
+        "observation.images.wrist": {
+            "type": "VISUAL",
+            "shape": [
+                3,
+                256,
+                256
+            ]
+        },
+        "observation.state": {
+            "type": "STATE",
+            "shape": [
+                8
+            ]
+        },
+        "action": {
+            "type": "ACTION",
+            "shape": [
+                3
+            ]
+        }
+    },
+    "features_map": {
+        "observation.images.top": "observation.images.top",
+        "observation.images.wrist": "observation.images.wrist",
+        "observation.state": "observation.state",
+        "action": "action"
+    },
+    "reward_classifier_pretrained_path": null
+}

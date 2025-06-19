@@ -44,6 +44,7 @@ class XarmMotorBus(MotorsBus):
         # Stop event
         self.stop_event = threading.Event()
         self.replay_mode = False
+        self.cartesian_mode = False
 
         # Create and start the digital input monitoring thread
         print("Creating monitor thread")  # Debug print
@@ -243,8 +244,22 @@ class XarmMotorBus(MotorsBus):
         ])
         
         return R
+    
+    def set_collision_sensing(self, mode: int):
+        """
+        Set the collision sensing mode.
+        0: Disable collision sensing
+        1: Enable collision sensing
+        """
+        if mode not in [0, 5]:
+            raise ValueError("Invalid mode. Use 0 to disable or 1 to enable collision sensing.")
+        self.api.set_collision_sensitivity(mode)
 
     def set_cartesian_position(self, position: np.ndarray):
+        if not self.cartesian_mode:
+            self.api.set_mode(7)  # Set to Cartesian mode
+            self.api.set_state(0)  # Set to idle
+            self.cartesian_mode = True
         x, y, z = position[:3]
         roll, pitch, yaw = position[3:]
         self.api.set_position(x=x, y=y, z=z, roll=roll, pitch=pitch, yaw=yaw, wait=False, speed=self.MAX_SPEED_LIMIT, acceleration=self.MAX_ACC_LIMIT)
@@ -413,10 +428,19 @@ class XarmMotorBus(MotorsBus):
         pass
 
     def disable_torque(self, motors = None, num_retry = 0):
-        pass
+        if not self.is_connected:
+            raise RuntimeError("Cannot disable torque: MotorsBus is not connected.")
+        
+        self.api.set_servo_detach(8)
 
     def enable_torque(self, motors = None, num_retry = 0):
-        pass
+        if not self.is_connected:
+            raise RuntimeError("Cannot enable torque: MotorsBus is not connected.")
+        
+        self.api.set_servo_attach(8)
+        # # Enable torque for all motors
+        # for motor in self.motor_names:
+        #     self.api.set_servo_torque_enable(motor, True)
     
     @property
     def is_calibrated(self) -> bool:

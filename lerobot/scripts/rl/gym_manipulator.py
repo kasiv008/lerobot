@@ -73,8 +73,11 @@ from lerobot.configs import parser
 logging.basicConfig(level=logging.INFO)
 
 
-def reset_follower_position(robot_arm, target_position):
-    current_position_dict = robot_arm.bus.sync_read("Present_Position")
+def reset_follower_position(robot_arm, target_position, robot_type="so101"):
+    if robot_type != "u850":
+        current_position_dict = robot_arm.bus.sync_read("Present_Position")
+    else:
+        current_position_dict = robot_arm.bus.get_position()
     current_position = np.array(
         [current_position_dict[name] for name in current_position_dict], dtype=np.float32
     )
@@ -83,8 +86,9 @@ def reset_follower_position(robot_arm, target_position):
     )  # NOTE: 30 is just an arbitrary number
     for pose in trajectory:
         action_dict = dict(zip(current_position_dict, pose, strict=False))
-        robot_arm.bus.sync_write("Goal_Position", action_dict)
-        busy_wait(0.015)
+        #print(f"Resetting follower position to {action_dict}")
+        robot_arm.bus.set_position(action_dict)
+        #busy_wait(0.015)
 
 
 class TorchBox(gym.spaces.Box):
@@ -831,6 +835,7 @@ class ResetWrapper(gym.Wrapper):
         self.reset_time_s = reset_time_s
         self.reset_pose = reset_pose
         self.robot = self.unwrapped.robot
+        self.robot_type = getattr(env.unwrapped.robot.config, "robot_type", "so101")
 
     def reset(self, *, seed=None, options=None):
         """
@@ -849,13 +854,16 @@ class ResetWrapper(gym.Wrapper):
         start_time = time.perf_counter()
         if self.reset_pose is not None:
             log_say("Reset the environment.", play_sounds=True)
-            reset_follower_position(self.unwrapped.robot, self.reset_pose)
+            reset_follower_position(self.unwrapped.robot, self.reset_pose,self.robot_type)
             log_say("Reset the environment done.", play_sounds=True)
 
             if hasattr(self.env, "robot_leader"):
-                self.env.robot_leader.bus.sync_write("Torque_Enable", 1)
+                if self.robot_type == "u850":
+                    self.env.robot_leader.bus.enable_torque()
+                else:
+                    self.env.robot_leader.bus.sync_write("Torque_Enable", 1)
                 log_say("Reset the leader robot.", play_sounds=True)
-                reset_follower_position(self.env.robot_leader, self.reset_pose)
+                reset_follower_position(self.env.robot_leader, self.reset_pose,self.robot_type)
                 log_say("Reset the leader robot done.", play_sounds=True)
         else:
             log_say(
@@ -1183,11 +1191,15 @@ class BaseLeaderControlWrapper(gym.Wrapper):
         # With lower gains we can manually move the leader arm without risk of injury to ourselves or the robot
         # With higher gains, it would be dangerous and difficult to modify the leader's pose while torque is enabled
         # Default value for P_coeff is 32
-        self.robot_leader.bus.sync_write("Torque_Enable", 1)
-        for motor in self.robot_leader.bus.motors:
-            self.robot_leader.bus.write("P_Coefficient", motor, 16)
-            self.robot_leader.bus.write("I_Coefficient", motor, 0)
-            self.robot_leader.bus.write("D_Coefficient", motor, 16)
+        if self.robot_type != "u850":
+            self.robot_leader.bus.sync_write("Torque_Enable", 1)
+            for motor in self.robot_leader.bus.motors:
+                self.robot_leader.bus.write("P_Coefficient", motor, 16)
+                self.robot_leader.bus.write("I_Coefficient", motor, 0)
+                self.robot_leader.bus.write("D_Coefficient", motor, 16)
+        else:
+            self.robot_leader.bus.enable_torque()
+            self.robot_leader.bus.set_collision_sensing(0)
 
         self.leader_tracking_error_queue = deque(maxlen=4)
         self._init_keyboard_listener()
@@ -1266,11 +1278,19 @@ class BaseLeaderControlWrapper(gym.Wrapper):
             Tuple of (modified_action, intervention_action).
         """
         if self.leader_torque_enabled:
-            self.robot_leader.bus.sync_write("Torque_Enable", 0)
-            self.leader_torque_enabled = False
+            if self.robot_type != "u850":
+                self.robot_leader.bus.sync_write("Torque_Enable", 0)
+                self.leader_torque_enabled = False
+            else:
+                self.robot_leader.bus.disable_torque()
+                self.leader_torque_enabled = False
 
-        leader_pos_dict = self.robot_leader.bus.sync_read("Present_Position")
-        follower_pos_dict = self.robot_follower.bus.sync_read("Present_Position")
+        if self.robot_type == "u850":
+            leader_pos_dict = self.robot_leader.bus.get_positions()
+            follower_pos_dict = self.robot_follower.bus.get_positions()
+        else:            
+            leader_pos_dict = self.robot_leader.bus.sync_read("Present_Position")
+            follower_pos_dict = self.robot_follower.bus.sync_read("Present_Position")
 
         leader_pos = np.array([leader_pos_dict[name] for name in leader_pos_dict], dtype=np.float32)
         follower_pos = np.array([follower_pos_dict[name] for name in follower_pos_dict], dtype=np.float32)
