@@ -76,7 +76,7 @@
     "task": "pick bag of chips and put in the grocery bag",
     "num_episodes": 15,
     "episode": 0,
-    "pretrained_policy_name_or_path": null,
+    "pretrained_policy_name_or_path": "/home/kasi/Desktop/lebot_training/act_toy_80/checkpoints/060000/pretrained_model",
     "device": "cuda",
     "push_to_hub": true,
     "fps": 30,

@@ -275,8 +275,6 @@ class RobotEnv(gym.Env):
         images = {key: obs_dict[key] for key in self._image_keys}
         return {"agent_pos": joint_positions, "pixels": images}
 
-    def _get_forward_kinematics(self) -> np.ndarray:
-        return self.robot.bus.get_forward_kinematics()
 
     def _setup_spaces(self):
         """
@@ -378,7 +376,11 @@ class RobotEnv(gym.Env):
         """
         self.current_joint_positions = self._get_observation()["agent_pos"]
 
-        action_dict = {"delta_x": action[0], "delta_y": action[1], "delta_z": action[2]}
+        current_cord = self.robot.bus.get_cartesian_position()
+        forward_coord = self.robot.bus.compute_forward_kinematics(action)
+        action_ = np.array(forward_coord-current_cord, dtype=np.float32)
+
+        action_dict = {"delta_x": action_[0], "delta_y": action_[1], "delta_z": action_[2]}
 
         # 1.0 action corresponds to no-op action
         action_dict["gripper"] = action[3] if self.use_gripper else 1.0
@@ -434,7 +436,7 @@ class AddJointVelocityToObservation(gym.ObservationWrapper):
     and extends the observation space to include these velocities.
     """
 
-    def __init__(self, env, joint_velocity_limits=100.0, fps=30, num_dof=6):
+    def __init__(self, env, joint_velocity_limits=100.0, fps=30, num_dof=7):
         """
         Initialize the joint velocity wrapper.
 
@@ -938,6 +940,7 @@ class GripperPenaltyWrapper(gym.RewardWrapper):
         super().__init__(env)
         self.penalty = penalty
         self.last_gripper_state = None
+        self.robot_type = self.unwrapped.robot.config.robot_type
 
     def reward(self, reward, action):
         """
@@ -970,7 +973,13 @@ class GripperPenaltyWrapper(gym.RewardWrapper):
         Returns:
             Tuple of (observation, reward, terminated, truncated, info) with penalty applied.
         """
-        self.last_gripper_state = self.unwrapped.robot.bus.sync_read("Present_Position")["gripper"]
+        if self.robot_type == "u850":
+            self.last_gripper_state = self.unwrapped.robot.bus.get_position()["gripper"]
+        else:
+            # For other robot types, use sync_read to get the gripper position
+            # This is necessary for robots that do not support get_position directly
+            # e.g., so101, so100, etc.
+            self.last_gripper_state = self.unwrapped.robot.bus.sync_read("Present_Position")["gripper"]
 
         gripper_action = action[-1]
         obs, reward, terminated, truncated, info = self.env.step(action)
@@ -1018,6 +1027,7 @@ class GripperActionWrapper(gym.ActionWrapper):
         self.gripper_sleep = gripper_sleep
         self.last_gripper_action_time = 0.0
         self.last_gripper_action = None
+        self.robot_type = self.unwrapped.robot.config.robot_type
 
     def action(self, action):
         """
@@ -1050,8 +1060,10 @@ class GripperActionWrapper(gym.ActionWrapper):
                 np.sign(gripper_command) if abs(gripper_command) > self.quantization_threshold else 0.0
             )
         gripper_command = gripper_command * self.unwrapped.robot.config.max_gripper_pos
-
-        gripper_state = self.unwrapped.robot.bus.sync_read("Present_Position")["gripper"]
+        if self.robot_type == "u850":
+            gripper_state = self.unwrapped.robot.bus.get_position()["gripper"]
+        else:
+            gripper_state = self.unwrapped.robot.bus.sync_read("Present_Position")["gripper"]
 
         gripper_action_value = np.clip(
             gripper_state + gripper_command, 0, self.unwrapped.robot.config.max_gripper_pos
@@ -1123,10 +1135,11 @@ class EEObservationWrapper(gym.ObservationWrapper):
         Returns:
             Enhanced observation with end-effector pose information.
         """
-        current_joint_pos = self.unwrapped._get_observation()["agent_pos"]
+        
         if self.robot_type == "u850":
-            current_ee_pos = self.unwrapped._get_forward_kinematics()[:3, 3]
+            current_ee_pos = self.unwrapped.robot.bus.get_forward_kinematics()[:3, 3]
         else: 
+            current_joint_pos = self.unwrapped._get_observation()["agent_pos"]
             current_ee_pos = self.kinematics.forward_kinematics(current_joint_pos, frame="gripper_tip")[:3, 3]
         observation["agent_pos"] = np.concatenate([observation["agent_pos"], current_ee_pos], -1)
         return observation
@@ -1286,8 +1299,8 @@ class BaseLeaderControlWrapper(gym.Wrapper):
                 self.leader_torque_enabled = False
 
         if self.robot_type == "u850":
-            leader_pos_dict = self.robot_leader.bus.get_positions()
-            follower_pos_dict = self.robot_follower.bus.get_positions()
+            leader_pos_dict = self.robot_leader.bus.get_position()
+            follower_pos_dict = self.robot_follower.bus.get_position()
         else:            
             leader_pos_dict = self.robot_leader.bus.sync_read("Present_Position")
             follower_pos_dict = self.robot_follower.bus.sync_read("Present_Position")
@@ -1299,8 +1312,8 @@ class BaseLeaderControlWrapper(gym.Wrapper):
 
         # [:3, 3] Last column of the transformation matrix corresponds to the xyz translation
         if self.robot_type == "u850":
-            leader_ee = self.unwrapped._get_forward_kinematics(leader_pos)[:3, 3]
-            follower_ee = self.unwrapped._get_forward_kinematics(follower_pos)[:3, 3]
+            leader_ee = self.robot_leader.bus.get_forward_kinematics()[:3, 3]
+            follower_ee = self.robot_follower.bus.get_forward_kinematics()[:3, 3]
         else:
             leader_ee = self.kinematics.forward_kinematics(leader_pos, frame="gripper_tip")[:3, 3]
             follower_ee = self.kinematics.forward_kinematics(follower_pos, frame="gripper_tip")[:3, 3]
@@ -1338,21 +1351,45 @@ class BaseLeaderControlWrapper(gym.Wrapper):
 
         This method synchronizes the leader robot position with the follower.
         """
-
-        prev_leader_pos_dict = self.robot_leader.bus.sync_read("Present_Position")
+        if self.robot_type == "u850":
+            # For u850, we use the get_positions method to get the current positions
+            # of the leader robot motors.
+            prev_leader_pos_dict = self.robot_leader.bus.get_position()
+        else:
+            # For other robots, we use sync_read to get the current positions
+            # of the leader robot motors.
+            prev_leader_pos_dict = self.robot_leader.bus.sync_read("Present_Position")
         prev_leader_pos = np.array(
             [prev_leader_pos_dict[name] for name in prev_leader_pos_dict], dtype=np.float32
         )
 
         if not self.leader_torque_enabled:
-            self.robot_leader.bus.sync_write("Torque_Enable", 1)
+            if self.robot_type != "u850":
+                # Enable torque for the leader robot
+                self.robot_leader.bus.sync_write("Torque_Enable", 1)
+            else:
+                # Enable torque for the u850 robot
+                self.robot_leader.bus.enable_torque()
             self.leader_torque_enabled = True
+        
+        if self.robot_type == "u850":
+            # For u850, we use the get_positions method to get the current positions
+            # of the follower robot motors.
+            follower_pos_dict = self.robot_follower.bus.get_position()
+        else:
+            # For other robots, we use sync_read to get the current positions
+            # of the follower robot motors.
+            follower_pos_dict = self.robot_follower.bus.sync_read("Present_Position")
 
-        follower_pos_dict = self.robot_follower.bus.sync_read("Present_Position")
         follower_pos = np.array([follower_pos_dict[name] for name in follower_pos_dict], dtype=np.float32)
 
         goal_pos = {f"{motor}": follower_pos[i] for i, motor in enumerate(self.robot_leader.bus.motors)}
-        self.robot_leader.bus.sync_write("Goal_Position", goal_pos)
+        if self.robot_type == "u850":
+            # For u850, we use the set_positions method to set the goal positions
+            # of the leader robot motors.
+            self.robot_leader.bus.set_position(goal_pos)
+        else:
+            self.robot_leader.bus.sync_write("Goal_Position", goal_pos)
 
         self.leader_tracking_error_queue.append(np.linalg.norm(follower_pos[:-1] - prev_leader_pos[:-1]))
 
@@ -1380,12 +1417,21 @@ class BaseLeaderControlWrapper(gym.Wrapper):
         # Add intervention info
         info["is_intervention"] = is_intervention
         info["action_intervention"] = action
-
-        self.prev_leader_gripper = np.clip(
-            self.robot_leader.bus.sync_read("Present_Position")["gripper"],
-            0,
-            self.robot_follower.config.max_gripper_pos,
-        )
+        
+        if self.robot_type == "u850":
+            # For u850, we use the get_positions method to get the current positions
+            # of the leader robot motors.
+            self.prev_leader_gripper = np.clip(
+                self.robot_leader.bus.get_position()["gripper"],
+                0,
+                self.robot_follower.config.max_gripper_pos,
+            )
+        else:
+            self.prev_leader_gripper = np.clip(
+                self.robot_leader.bus.sync_read("Present_Position")["gripper"],
+                0,
+                self.robot_follower.config.max_gripper_pos,
+            )
 
         # Check for success or manual termination
         success = self.keyboard_events["episode_success"]
@@ -2067,12 +2113,12 @@ def record_dataset(env, policy, cfg):
     action_names = ["delta_x_ee", "delta_y_ee", "delta_z_ee"]
     if cfg.wrapper.use_gripper:
         action_names.append("gripper_delta")
-
+        
     # Configure dataset features based on environment spaces
     features = {
         "observation.state": {
             "dtype": "float32",
-            "shape": env.observation_space["observation.state"].shape,
+            "shape": (24,),
             "names": None,
         },
         "action": {
@@ -2094,7 +2140,7 @@ def record_dataset(env, policy, cfg):
         if "image" in key:
             features[key] = {
                 "dtype": "video",
-                "shape": env.observation_space[key].shape,
+                "shape": [3,480,640],  # Assuming RGB images of size 480x640
                 "names": ["channels", "height", "width"],
             }
 
@@ -2127,10 +2173,16 @@ def record_dataset(env, policy, cfg):
 
             # Get action from policy if available
             if cfg.pretrained_policy_name_or_path is not None:
+                for k in obs:
+                    
+                    if 'state' in k:
+                        tmp = obs[k].squeeze(0)  # Ensure state is batched
+                        obs[k] = tmp[:7].unsqueeze(0)  # Keep only the first 7 elements
                 action = policy.select_action(obs)
 
             # Step environment
             obs, reward, terminated, truncated, info = env.step(action)
+        
 
             # Check if episode needs to be rerecorded
             if info.get("rerecord_episode", False):
@@ -2138,11 +2190,15 @@ def record_dataset(env, policy, cfg):
 
             # For teleop, get action from intervention
             recorded_action = {
-                "action": info["action_intervention"].cpu().squeeze(0).float() if policy is None else action
+                "action": info["action_intervention"].cpu().squeeze(0).float() if policy is None else action #"action": info["action_intervention"].cpu().squeeze(0).float()  for other configs except u850
             }
 
             # Process observation for dataset
             obs_processed = {k: v.cpu().squeeze(0).float() for k, v in obs.items()}
+            if "observation.images.wrist" in obs_processed:
+                obs_processed["observation.images.wrist"] = obs_processed["observation.images.wrist"].permute(1, 2, 0)
+            if "observation.images.top" in obs_processed:
+                obs_processed["observation.images.top"] = obs_processed["observation.images.top"].permute(1, 2, 0)
 
             # Check if we've just detected success
             if reward == 1.0 and not success_detected:
@@ -2240,15 +2296,23 @@ def main(cfg: EnvConfig):
     Args:
         cfg: Configuration object defining the run parameters,
              including mode (record, replay, random) and other settings.
+             
     """
+
     env = make_robot_env(cfg)
 
     if cfg.mode == "record":
         policy = None
         if cfg.pretrained_policy_name_or_path is not None:
-            from lerobot.common.policies.sac.modeling_sac import SACPolicy
+            # from lerobot.common.policies.sac.modeling_sac import SACPolicy
 
-            policy = SACPolicy.from_pretrained(cfg.pretrained_policy_name_or_path)
+            # policy = SACPolicy.from_pretrained(cfg.pretrained_policy_name_or_path)
+            # policy.to(cfg.device)
+            # policy.eval()
+            from lerobot.common.policies.act.modeling_act import ACTPolicy
+            policy = ACTPolicy.from_pretrained(
+                pretrained_name_or_path=cfg.pretrained_policy_name_or_path,
+            )
             policy.to(cfg.device)
             policy.eval()
 

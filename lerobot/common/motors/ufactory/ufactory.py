@@ -245,6 +245,10 @@ class XarmMotorBus(MotorsBus):
         
         return R
     
+    def compute_forward_kinematics(self, angles: np.ndarray):
+        position = self.api.get_forward_kinematics(angles=angles)
+        return np.array(position)
+    
     def set_collision_sensing(self, mode: int):
         """
         Set the collision sensing mode.
@@ -268,10 +272,12 @@ class XarmMotorBus(MotorsBus):
         position = [i for _, i in list(position.items())]
         angles = position[:-1]
         gripper_pos = int(position[-1])
-        
-        # joints        
-        self.api.set_servo_angle_j(angles=angles, is_radian=False,wait = False )
-                
+        self.api.set_mode(0)  # Set to follower mode
+        self.api.set_state(0)  # Set to idle state
+
+        # joints
+        self.api.set_servo_angle_j(angles=angles, is_radian=False, wait=False)
+
         # gripper
         if self.motor_models[-1] == "gipper":
             self.api.set_gripper_position(pos=gripper_pos, wait=False)
@@ -430,14 +436,14 @@ class XarmMotorBus(MotorsBus):
     def disable_torque(self, motors = None, num_retry = 0):
         if not self.is_connected:
             raise RuntimeError("Cannot disable torque: MotorsBus is not connected.")
-        
-        self.api.set_servo_detach(8)
+        self.api.set_mode(0)  # Set to leader mode
+        self.api.set_state(0)  # Set to idle state
 
     def enable_torque(self, motors = None, num_retry = 0):
         if not self.is_connected:
             raise RuntimeError("Cannot enable torque: MotorsBus is not connected.")
-        
-        self.api.set_servo_attach(8)
+        self.api.set_mode(1)  # Set to follower mode
+        self.api.set_state(0)
         # # Enable torque for all motors
         # for motor in self.motor_names:
         #     self.api.set_servo_torque_enable(motor, True)

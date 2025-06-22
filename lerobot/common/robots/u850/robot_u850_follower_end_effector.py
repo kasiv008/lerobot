@@ -136,11 +136,11 @@ class U850FollowerEndEffector(U850Robot):
                 self.end_effector_bounds["max"],
             )
 
-        gripper_pos = np.clip(
+        gripper_pos = int(np.clip(
             self.current_joint_pos[-1] + (action[-1] - 1) * self.config.max_gripper_pos,
             0,
             self.config.max_gripper_pos,
-        )
+        ))
 
         x, y, z = desired_ee_pos[:3, 3]*1000  # Convert to mm
         pitch = np.arcsin(-desired_ee_pos[2, 0])
@@ -152,7 +152,6 @@ class U850FollowerEndEffector(U850Robot):
             yaw = 0
         desired_cart_pos = np.array([x, y, z, np.degrees(roll), np.degrees(pitch), np.degrees(yaw)])
 
-        
         self.bus.set_cartesian_position(desired_cart_pos)
         self.bus.set_gripper_pos(gripper_pos)
         
